@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2312100f'/%3E%3Ctext x='16' y='23' font-size='18' text-anchor='middle' fill='%23e8a83c'%3ED2%3C/text%3E%3C/svg%3E">
+<title>DUSTFALL II — Kestrel Yard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #12100f; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: #efe9dd; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  .ch-dot { position: absolute; left: -1.5px; top: -1.5px; width: 3px; height: 3px; background: #efe9dd; border-radius: 50%; box-shadow: 0 0 3px rgba(0,0,0,.8); }
+  .ch-line { position: absolute; background: #efe9dd; box-shadow: 0 0 3px rgba(0,0,0,.8); }
+  .ch-t { left: -1px; top: -14px; width: 2px; height: 8px; }
+  .ch-b { left: -1px; top: 6px; width: 2px; height: 8px; }
+  .ch-l { left: -14px; top: -1px; width: 8px; height: 2px; }
+  .ch-r { left: 6px; top: -1px; width: 8px; height: 2px; }
+
+  #hitmarker { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; display: none; }
+  #hitmarker::before, #hitmarker::after { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 2px; background: #fff; }
+  #hitmarker::before { transform: translate(-50%, -50%) rotate(45deg); }
+  #hitmarker::after { transform: translate(-50%, -50%) rotate(-45deg); }
+  #hitmarker.hit-kill::before, #hitmarker.hit-kill::after { background: #e05545; }
+
+  #hitdir { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; display: none; }
+  .hd-arc { position: absolute; inset: 0; border-radius: 50%; border: 3px solid transparent; border-top-color: #e05545; }
+
+  #scope-overlay { position: absolute; inset: 0; display: none; background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,.92) 42%); }
+  .scope-ring { position: absolute; left: 50%; top: 50%; width: 56vmin; height: 56vmin; margin: -28vmin 0 0 -28vmin; border: 2px solid rgba(239,233,221,.5); border-radius: 50%; }
+  .scope-h { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(239,233,221,.5); }
+  .scope-v { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(239,233,221,.5); }
+
+  #damage-vignette { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(224,85,69,.55) 100%); }
+  #whiteout { position: absolute; inset: 0; opacity: 0; background: #fff6e0; }
+
+  #topbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; }
+  .team-score { display: flex; align-items: center; gap: 10px; background: rgba(18,16,15,.72); border: 1px solid #37302a; padding: 6px 14px; border-radius: 4px; font-size: 20px; font-weight: 700; }
+  .team-score.van { border-top: 2px solid #3d8fd1; }
+  .team-score.sen { border-top: 2px solid #d95f33; }
+  .ts-label { font-size: 11px; letter-spacing: .12em; color: #a89e8c; font-weight: 600; }
+  #timer-wrap { text-align: center; background: rgba(18,16,15,.72); border: 1px solid #37302a; padding: 4px 18px; border-radius: 4px; }
+  #timer { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #round-label { font-size: 10px; letter-spacing: .18em; color: #a89e8c; }
+
+  #zone-line { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); font-size: 12px; letter-spacing: .14em; color: #a89e8c; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  #zone-name { color: #efe9dd; font-weight: 700; }
+  #execute-line { color: #e8a83c; }
+  #bomb-line { position: absolute; top: 88px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 700; letter-spacing: .1em; color: #ffd23c; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+
+  #feed { position: absolute; top: 12px; right: 14px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  .feed-item { background: rgba(18,16,15,.72); border: 1px solid #37302a; padding: 4px 10px; border-radius: 3px; font-size: 13px; }
+  .feed-good { border-left: 3px solid #3d8fd1; }
+  .feed-bad { border-left: 3px solid #d95f33; }
+
+  #minimap { position: absolute; top: 12px; left: 14px; border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,.5); }
+
+  #bottom-left { position: absolute; left: 16px; bottom: 16px; }
+  #health-wrap { display: flex; align-items: baseline; gap: 6px; }
+  #health { font-size: 44px; font-weight: 800; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  .hl-label { font-size: 12px; color: #a89e8c; letter-spacing: .1em; }
+  #health-bar { width: 160px; height: 6px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  #health-fill { height: 100%; width: 100%; background: #7bc47f; transition: width .2s; }
+  #money { font-size: 22px; font-weight: 700; color: #7bc47f; margin-top: 8px; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+
+  #bottom-right { position: absolute; right: 16px; bottom: 16px; text-align: right; }
+  #weapon-name { font-size: 14px; letter-spacing: .1em; color: #a89e8c; }
+  #ammo { font-size: 40px; font-weight: 800; line-height: 1.1; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  .ammo-sep { color: #6f675a; font-size: 24px; margin: 0 4px; }
+  #ammo-reserve { font-size: 22px; color: #a89e8c; }
+  #grenade-line { font-size: 12px; color: #a89e8c; margin-top: 4px; }
+  #grenade-line .gren-sel { color: #e8a83c; font-weight: 700; }
+  #grenade-line .dim { color: #6f675a; }
+  #channel-bar { display: none; width: 220px; height: 18px; background: rgba(255,255,255,.12); border-radius: 3px; margin-top: 8px; position: relative; overflow: hidden; }
+  #channel-fill { height: 100%; width: 0%; background: #e8a83c; }
+  #channel-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: .12em; font-weight: 700; }
+
+  #banner { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); text-align: center; display: none; }
+  .banner-title { font-size: 52px; font-weight: 900; letter-spacing: .08em; text-shadow: 0 3px 12px rgba(0,0,0,.9); }
+  .banner-title.vanguard { color: #3d8fd1; }
+  .banner-title.sentinel { color: #d95f33; }
+  .banner-reason { font-size: 16px; color: #a89e8c; margin-top: 4px; }
+  #mvp-banner { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); text-align: center; display: none; background: rgba(18,16,15,.8); border: 1px solid #e8a83c; padding: 10px 26px; border-radius: 4px; }
+  .mvp-title { font-size: 18px; font-weight: 800; color: #e8a83c; letter-spacing: .08em; }
+  .mvp-line { font-size: 13px; color: #a89e8c; margin-top: 2px; }
+
+  #hint-line { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #a89e8c; text-shadow: 0 1px 3px rgba(0,0,0,.9); white-space: nowrap; }
+
+  #buy-menu { position: absolute; inset: 0; display: none; background: rgba(10,9,8,.6); pointer-events: auto; }
+  .buy-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 640px; max-width: 92vw; background: #1c1917; border: 1px solid #37302a; border-radius: 6px; padding: 20px; }
+  .buy-header { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; letter-spacing: .1em; margin-bottom: 14px; }
+  .buy-money { color: #7bc47f; }
+  .buy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .buy-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; text-align: left; background: #262019; border: 1px solid #37302a; border-radius: 4px; padding: 10px 12px; color: #efe9dd; cursor: pointer; font-family: inherit; }
+  .buy-item:hover:not(:disabled) { border-color: #e8a83c; background: #2e2718; }
+  .buy-item:disabled { opacity: .45; cursor: default; }
+  .buy-name { font-weight: 700; font-size: 14px; }
+  .buy-blurb { grid-column: 1; font-size: 11px; color: #a89e8c; }
+  .buy-price { grid-column: 2; grid-row: 1; color: #7bc47f; font-weight: 700; }
+  .buy-tag { grid-column: 2; grid-row: 2; font-size: 10px; letter-spacing: .1em; color: #e05545; text-align: right; }
+  .buy-footer { margin-top: 14px; font-size: 11px; color: #6f675a; text-align: center; }
+
+  #menu-screen { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(18,16,15,.55), rgba(18,16,15,.88)); pointer-events: auto; }
+  .menu-panel { width: 760px; max-width: 94vw; max-height: 94vh; overflow-y: auto; text-align: center; padding: 28px; }
+  .menu-kicker { font-size: 12px; letter-spacing: .3em; color: #e8a83c; }
+  .menu-title { font-size: 72px; font-weight: 900; letter-spacing: .04em; line-height: 1; margin: 8px 0; }
+  .menu-title span { color: #e8a83c; }
+  .menu-title.win { color: #7bc47f; }
+  .menu-title.lose { color: #e05545; }
+  .menu-sub { font-size: 15px; color: #a89e8c; margin-bottom: 20px; }
+  .menu-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; margin-bottom: 24px; }
+  .menu-cols h3 { font-size: 12px; letter-spacing: .18em; color: #e8a83c; margin: 12px 0 4px; }
+  .menu-cols p { font-size: 13px; line-height: 1.55; color: #cfc7b8; }
+  .menu-cols b { color: #efe9dd; }
+  #start-btn { font-family: inherit; font-size: 18px; font-weight: 800; letter-spacing: .12em; color: #12100f; background: #e8a83c; border: none; border-radius: 4px; padding: 14px 44px; cursor: pointer; }
+  #start-btn:hover { background: #f2bd55; }
+  .menu-foot { margin-top: 14px; font-size: 11px; color: #6f675a; }
+  .menu-stats { display: flex; justify-content: center; gap: 32px; margin: 20px 0 26px; }
+  .stat-num { display: block; font-size: 32px; font-weight: 800; }
+  .stat-label { font-size: 10px; letter-spacing: .18em; color: #a89e8c; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
